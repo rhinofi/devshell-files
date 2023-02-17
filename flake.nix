@@ -40,10 +40,17 @@
     isntPkg  = val: !(isPkg val);
     mkShell  = imports': shell { inherit self devshell nixpkgs; } imports';
     overlay  = devshell.overlay;
-    overlays = { default = overlay; };
+    overlays = {
+      default = overlay;
+      devshell-files = final: prev: {
+        devshell-files = {
+          eval = import lib/eval.nix final;
+        };
+      };
+    };
     pkgs     = system: nixpkgs.legacyPackages.${system}.extend devshell.overlay;
     shell    = inputs: imports':
-    let 
+    let
       imports  = modules' ++ modules;
       modules  = builtins.filter isntPkg imports';
       packages = builtins.filter isPkg   imports';
@@ -58,8 +65,33 @@
         configuration    = { inherit packages imports; };
         extraSpecialArgs = { inputs = devShellInputs;  };
       };
+      pkgs' = import nixpkgs {
+        system = "x86_64-linux";
+        overlays = [ overlays.devshell-files overlays.default ];
+      };
+      module = { dsfModulesPath, ... }: {
+        imports = [
+          (dsfModulesPath + "/files.nix")
+          (dsfModulesPath + "/text.nix")
+          (dsfModulesPath + "/git.nix")
+        ];
+        config.file."/README.md".text = ''# Hello there'';
+      };
+      evalledWithoutDevshell = pkgs'.devshell-files.eval {
+        inherit module;
+      };
+      evalledWithDevshell = pkgs'.devshell-files.eval {
+        inherit module;
+        modules = [
+          (devshell + "/modules/commands.nix")
+          (devshell + "/modules/devshell.nix")
+          (devshell + "/modules/env.nix")
+        ];
+      };
     in {
       inherit devShellInputs devShellModules;
+      packages.x86_64-linux.devshell-files-create-all = evalledWithoutDevshell.config.files.create-all;
+      packages.x86_64-linux.devshell-shell = evalledWithDevshell.config.devshell.shell;
       devShells.aarch64-darwin.default = (eval "aarch64-darwin").shell;
       devShells.aarch64-linux.default  = (eval "aarch64-linux" ).shell;
       devShells.x86_64-darwin.default  = (eval "x86_64-darwin" ).shell;
