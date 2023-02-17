@@ -14,7 +14,8 @@ let
       else if file.git-add
         then "git add $target"
         else "";
-  toName    = name: ".dsf${lib.strings.sanitizeDerivationName name}";
+  toName    = name: "dsf${lib.strings.sanitizeDerivationName name}";
+
   # Execute this script to update the project's files
   copy-file = name: file: pkgs.writeShellScriptBin "${toName name}" ''
     target="$PRJ_ROOT${file.target}"
@@ -30,9 +31,20 @@ let
   opt.type        = fileType "<envar>PRJ_ROOT</envar>";
   startup.devshell-files.text = "$DEVSHELL_DIR/bin/devshell-files";
   startups  = map (name: "source $DEVSHELL_DIR/bin/${toName name}") (builtins.attrNames files);
+  packages = lib.mapAttrsToList copy-file files;
 in {
   options.file    = lib.mkOption opt;
+  options.files.create-all = lib.mkOption {
+    type = lib.types.package;
+    description = "Package cotaining a script used to create all files.";
+    default = pkgs.writers.writeBashBin "devshell-files-create-all" ''
+      set -eu
+      export PRJ_ROOT=''${PRJ_ROOT:-$(${pkgs.coreutils}/bin/pwd)}
+      ${lib.concatStringsSep "\n" (map lib.getExe packages)}
+    '';
+  };
+
   config.commands = lib.mkIf (builtins.length startups > 0) [ cmd ];
-  config.devshell.packages = lib.mapAttrsToList copy-file files;
+  config.devshell.packages = packages;
   config.devshell.startup  = lib.mkIf (builtins.length startups > 0) startup;
 }
