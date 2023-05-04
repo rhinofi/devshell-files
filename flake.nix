@@ -6,6 +6,10 @@
   inputs.nixpkgs.url  = "github:nixos/nixpkgs/release-22.11";
   inputs.devshell.url = "github:numtide/devshell";
   inputs.devshell.inputs.nixpkgs.follows = "nixpkgs";
+  inputs.flake-compat = {
+    url = "github:edolstra/flake-compat";
+    flake = false;
+  };
 
   outputs = { self, devshell, nixpkgs }:
   let
